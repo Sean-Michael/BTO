@@ -15,3 +15,8 @@ NOAA has provided the following stations within the Bellingham Bay:
 | Upright Head, Lopez Island      | 9449911 | +48.5717 | -122.8850 | Harmonic    |
 | Orcas, Orcas Island             | 9449798 | +48.6000 | -122.9500 | Subordinate |
 
+
+### Resources
+
+I found [this reddit post](https://www.reddit.com/r/oceanography/comments/i0e8m5/calculation_of_subordinate_tide_stations_from/) helpful for understanding the Subordinate/Harmonic `Predictions` column. The Bellingham station data is an interpolation (estimate of unkown values from known values) of the readings from Port Townsend, and the curves are rendered as Bezier curves between the high and low points. That really takes me back to my Intro To Computer Graphics days at OSU. This would have been such a cool project for that assignment! Oh well.
+
