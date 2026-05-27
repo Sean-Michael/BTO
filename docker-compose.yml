@@ -1,0 +1,32 @@
+# Development stack with hot-reload for both services.
+# Production uses the root Dockerfile (single container) instead.
+services:
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile.dev
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./backend:/app
+      # Keep the image's .venv; don't let the host mount shadow it.
+      - /app/.venv
+    env_file:
+      - path: ./backend/.env
+        required: false
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile.dev
+    ports:
+      - "5173:5173"
+    volumes:
+      - ./frontend:/app
+      # Keep the image's node_modules; don't let the host mount shadow it.
+      - /app/node_modules
+    environment:
+      # Vite (in this container) proxies /api to the backend service.
+      VITE_API_PROXY: http://backend:8000
+    depends_on:
+      - backend
