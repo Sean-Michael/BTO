@@ -1,0 +1,100 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  backend:
+    name: Backend (lint + test)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+
+      - name: Sync dependencies
+        run: uv sync --frozen
+
+      - name: Lint (ruff)
+        run: |
+          uv run ruff check .
+          uv run ruff format --check .
+
+      - name: Test (pytest)
+        run: uv run pytest
+
+  frontend:
+    name: Frontend (lint + test + build)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Lint (eslint)
+        run: npm run lint
+
+      - name: Test (vitest)
+        run: npm test
+
+      - name: Build
+        run: npm run build
+
+  container-scan:
+    name: Scan ${{ matrix.name }} image (grype)
+    runs-on: ubuntu-latest
+    needs: [backend, frontend]
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: prod
+            context: .
+            dockerfile: Dockerfile
+          - name: backend-dev
+            context: ./backend
+            dockerfile: backend/Dockerfile.dev
+          - name: frontend-dev
+            context: ./frontend
+            dockerfile: frontend/Dockerfile.dev
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build image
+        uses: docker/build-push-action@v6
+        with:
+          context: ${{ matrix.context }}
+          file: ${{ matrix.dockerfile }}
+          tags: bto-${{ matrix.name }}:ci
+          load: true
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Scan image with Grype
+        uses: anchore/scan-action@v6
+        with:
+          image: bto-${{ matrix.name }}:ci
+          fail-build: true
+          severity-cutoff: high
+          only-fixed: true
