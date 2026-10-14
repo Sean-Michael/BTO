@@ -29,21 +29,38 @@ tap-through drilldown:
 With Docker Compose (both services, hot-reload):
 
 ```bash
-docker compose up --build      # UI on :5173, API on :8000
+docker compose up --build      # UI on :5173/tides/, API on :8000/api/tides
 ```
 
 Or run the two halves yourself:
 
 ```bash
 cd backend && uv run uvicorn app.main:app --reload      # :8000
-cd frontend && npm install && npm run dev               # :5173, proxies /api
+cd frontend && npm install && npm run dev               # :5173/tides/, proxies /api
 ```
 
 For a single production container — frontend built and served as static files by
 FastAPI:
 
 ```bash
-docker build -t bto . && docker run -p 8000:8000 bto    # :8000
+docker build -t bto . && docker run -p 8000:8000 bto    # :8000/tides
+```
+
+Everything is served under `/tides` (UI) and `/api/tides` (API) so it can share
+the sean-michael.dev domain with the main site.
+
+## Deploy
+
+Pushes to `main` that pass CI publish `<dockerhub user>/bto:latest` to Docker Hub
+(needs the `DOCKERHUB_USERNAME` and `DOCKERHUB_TOKEN` repo secrets). The container
+runs on the main site's EC2 box: its `tides` service is in
+[Sean-Michael.dev](https://github.com/Sean-Michael/Sean-Michael.dev)'s
+`docker-compose.yaml`, and Traefik routes `/tides` and `/api/tides` to it. To turn
+it on, add to `/opt/app/.env` on the box:
+
+```bash
+COMPOSE_PROFILES=tides
+TIDES_IMAGE=<dockerhub user>/bto:latest
 ```
 
 ## How it works

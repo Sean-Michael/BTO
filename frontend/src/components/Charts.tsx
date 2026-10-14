@@ -140,6 +140,9 @@ export function BigChart({
   const xOf = (t: number) => padL + ((t - from) / (to - from)) * innerW
   const yOf = (v: number) => padT + (1 - (v - lo) / spanV) * innerH
   const yTicks = niceTicks(lo, hi, 5)
+  // Sub-foot steps need a decimal, else labels collapse to duplicates (2,2,1,1).
+  const yStep = yTicks.length > 1 ? Math.abs(yTicks[1] - yTicks[0]) : 1
+  const yPrec = yStep < 1 ? 1 : 0
   const meanV = (lo + hi) / 2
 
   const colorFor = (i: number) => {
@@ -218,21 +221,31 @@ export function BigChart({
         )
       })}
 
-      {showEvents &&
-        single &&
-        eventsIn(series[0].extrema, from, to).map((e, i) => {
+      {/* Annotate hi/lo only when there are few enough to stay legible. Beyond
+          that (multi-day ranges) the labels overlap into noise, so just dot the
+          peaks; past an even higher count, show nothing and let the curve speak. */}
+      {(() => {
+        if (!showEvents || !single) return null
+        const events = eventsIn(series[0].extrema, from, to)
+        const labeled = events.length <= 14
+        const dotted = events.length <= 60
+        if (!dotted) return null
+        return events.map((e, i) => {
           const x = xOf(e.t)
           const y = yOf(e.height)
           const yOff = e.kind === 'H' ? -8 : 14
           return (
             <g key={`ev${i}`}>
               <circle cx={x} cy={y} r="2.4" fill={STROKE} />
-              <text x={x} y={y + yOff} textAnchor="middle" fill="rgba(220, 232, 245, 0.85)" fontFamily="var(--mono)" fontSize="9">
-                {e.kind === 'H' ? '▲' : '▼'} {e.height.toFixed(1)}ft · {fmtTime(e.t)}
-              </text>
+              {labeled && (
+                <text x={x} y={y + yOff} textAnchor="middle" fill="rgba(220, 232, 245, 0.85)" fontFamily="var(--mono)" fontSize="9">
+                  {e.kind === 'H' ? '▲' : '▼'} {e.height.toFixed(1)}ft · {fmtTime(e.t)}
+                </text>
+              )}
             </g>
           )
-        })}
+        })
+      })()}
 
       {showCurrent && single && now >= from && now <= to && (
         <g>
@@ -247,7 +260,7 @@ export function BigChart({
 
       {yTicks.map((v, i) => (
         <text key={`yt${i}`} x={padL - 6} y={yOf(v) + 3} textAnchor="end" fill={AXIS_LABEL} fontFamily="var(--mono)" fontSize="9">
-          {v.toFixed(0)}ft
+          {v.toFixed(yPrec)}ft
         </text>
       ))}
       {xTicks.map((t, i) => {

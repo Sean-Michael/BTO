@@ -17,6 +17,7 @@ def client() -> TestClient:
 def static_dir(tmp_path: Path) -> Path:
     """A minimal built-frontend directory: index.html + one asset."""
     (tmp_path / "index.html").write_text("<!doctype html><title>BTO</title>")
+    (tmp_path / "favicon.svg").write_text("<svg/>")
     assets = tmp_path / "assets"
     assets.mkdir()
     (assets / "app.js").write_text("console.log('bto')")

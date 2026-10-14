@@ -16,5 +16,5 @@ async function json<T>(res: Response): Promise<T> {
 
 /** Load station metadata + real NOAA hi/lo predictions + sun/moon in one call. */
 export async function fetchBootstrap(signal?: AbortSignal): Promise<Bootstrap> {
-  return json<Bootstrap>(await fetch('/api/bootstrap', { signal }))
+  return json<Bootstrap>(await fetch('/api/tides/bootstrap', { signal }))
 }
