@@ -6,7 +6,9 @@ import react from '@vitejs/plugin-react'
 // localhost. Override with VITE_API_PROXY when needed.
 const apiProxy = process.env.VITE_API_PROXY ?? 'http://127.0.0.1:8000'
 
+// Served at sean-michael.dev/tides, so assets and the dev server live under /tides/.
 export default defineConfig({
+  base: '/tides/',
   plugins: [react()],
   server: {
     host: true,

@@ -25,7 +25,7 @@ def fake_noaa(monkeypatch: pytest.MonkeyPatch) -> None:
 
 
 def test_list_stations_returns_all_six(client: TestClient) -> None:
-    res = client.get("/api/stations")
+    res = client.get("/api/tides/stations")
     assert res.status_code == 200
     body = res.json()
     assert len(body) == len(stations.STATIONS) == 6
@@ -33,7 +33,7 @@ def test_list_stations_returns_all_six(client: TestClient) -> None:
 
 
 def test_bootstrap_shape(client: TestClient, fake_noaa: None) -> None:
-    res = client.get("/api/bootstrap")
+    res = client.get("/api/tides/bootstrap")
     assert res.status_code == 200
     body = res.json()
     assert body["datum"] == "MLLW"
@@ -47,3 +47,58 @@ def test_bootstrap_shape(client: TestClient, fake_noaa: None) -> None:
     ex = stn["extrema"][0]
     assert {"t", "height", "kind"} <= ex.keys()
     assert isinstance(ex["t"], int)  # epoch ms
+
+
+def test_bootstrap_drops_failed_station(
+    client: TestClient, monkeypatch: pytest.MonkeyPatch, fake_noaa: None
+) -> None:
+    ok = noaa.fetch_extrema
+
+    async def flaky(station_id: str, begin: str, end: str) -> list[noaa.Extremum]:
+        if station_id == stations.STATIONS[0].id:
+            raise RuntimeError("NOAA down")
+        return await ok(station_id, begin, end)
+
+    monkeypatch.setattr(noaa, "fetch_extrema", flaky)
+    body = client.get("/api/tides/bootstrap").json()
+    assert len(body["stations"]) == len(stations.STATIONS) - 1
+
+
+def test_bootstrap_502_when_every_station_fails(
+    client: TestClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    async def down(station_id: str, begin: str, end: str) -> list[noaa.Extremum]:
+        raise RuntimeError("NOAA down")
+
+    monkeypatch.setattr(noaa, "fetch_extrema", down)
+    assert client.get("/api/tides/bootstrap").status_code == 502
+
+
+def test_fetch_extrema_serves_stale_on_error(monkeypatch: pytest.MonkeyPatch) -> None:
+    import asyncio
+
+    from app.config import Settings
+
+    noaa.clear_cache()
+    calls = {"n": 0}
+    good = [noaa.Extremum(t=datetime(2026, 5, 27, 1, 0), height=8.0, kind="H")]
+
+    def fake_blocking(station_id: str, begin: str, end: str) -> list[noaa.Extremum]:
+        calls["n"] += 1
+        if calls["n"] == 1:
+            return good
+        raise RuntimeError("NOAA down")
+
+    monkeypatch.setattr(noaa, "_fetch_blocking", fake_blocking)
+    # cache_ttl=0 forces a refetch on the 2nd call
+    monkeypatch.setattr(noaa, "get_settings", lambda: Settings(cache_ttl=0))
+
+    async def run() -> tuple[list[noaa.Extremum], list[noaa.Extremum]]:
+        first = await noaa.fetch_extrema("9449211", "20260501", "20260601")
+        second = await noaa.fetch_extrema("9449211", "20260501", "20260601")
+        return first, second
+
+    first, second = asyncio.run(run())
+    assert first == good
+    assert second == good  # stale-if-error: last-known-good despite the failure
+    noaa.clear_cache()
