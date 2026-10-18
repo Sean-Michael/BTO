@@ -2,11 +2,11 @@ import type { StationData } from '../types'
 import { stationSnapshot } from '../tides'
 
 const NAV = [
-  { icon: '~', label: 'Home' },
-  { icon: '/', label: 'Blog' },
-  { icon: '%', label: 'Digests' },
-  { icon: '#', label: 'Projects' },
-  { icon: '@', label: 'About' },
+  { icon: '~', label: 'Home', href: '/' },
+  { icon: '/', label: 'Blog', href: '/blog' },
+  { icon: '%', label: 'Digests', href: '/digest' },
+  { icon: '#', label: 'Projects', href: '/projects' },
+  { icon: '@', label: 'About', href: '/about' },
 ]
 
 export interface SavedView {
@@ -42,7 +42,7 @@ export function Sidebar({
 
       <div className="gs-sb-section">PAGES</div>
       {NAV.map((n) => (
-        <a key={n.label} className="gs-sb-link" href="#">
+        <a key={n.label} className="gs-sb-link" href={n.href}>
           <span className="gs-sb-glyph">{n.icon}</span>
           <span className="gs-sb-name">{n.label}</span>
         </a>

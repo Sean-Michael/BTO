@@ -1,6 +1,7 @@
 """Bellingham Tidal Observatory REST API.
 
-A single ``/api/bootstrap`` call returns everything the dashboard needs: station
+Mounted under ``/api/tides`` (the site routes that prefix here). A single
+``/api/tides/bootstrap`` call returns everything the dashboard needs: station
 metadata plus real NOAA hi/lo predictions (extrema) spanning a wide window, plus
 sun/moon facts. The frontend interpolates the smooth tide curve from those
 extrema client-side, so range/density/hover changes need no further round trips.
@@ -17,7 +18,7 @@ from fastapi import APIRouter, HTTPException
 
 from app import astro, noaa, stations
 
-router = APIRouter(prefix="/api")
+router = APIRouter(prefix="/api/tides")
 
 _TZ = ZoneInfo("America/Los_Angeles")
 
@@ -61,9 +62,15 @@ async def _bootstrap() -> dict[str, Any]:
     begin = (now - timedelta(days=_PAST_DAYS)).strftime("%Y%m%d")
     end = (now + timedelta(days=_FUTURE_DAYS)).strftime("%Y%m%d")
 
-    payloads = await asyncio.gather(
-        *(_station_payload(s, begin, end) for s in stations.STATIONS)
+    # Don't let one flaky station sink the whole dashboard: gather, then drop
+    # any that failed (each station already falls back to last-known-good data).
+    results = await asyncio.gather(
+        *(_station_payload(s, begin, end) for s in stations.STATIONS),
+        return_exceptions=True,
     )
+    payloads = [r for r in results if not isinstance(r, BaseException)]
+    if not payloads:
+        raise next(r for r in results if isinstance(r, BaseException))
 
     sm = astro.sun_moon(now.date())
     return {
@@ -83,7 +90,7 @@ async def _bootstrap() -> dict[str, Any]:
             "moon_illum": sm.moon_illum,
             "moon_glyph": sm.moon_glyph,
         },
-        "stations": list(payloads),
+        "stations": payloads,
     }
 
 
